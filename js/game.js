@@ -750,6 +750,32 @@
     board.style.setProperty('--back', 'url(' + backUrls[settings.back] + ')');
     document.body.style.setProperty('--table', 'url(' + tableUrl(settings.table) + ')');
   }
+  // Buttons, empty places, dialogs and the title are painted too.
+  var SW = { '210,52,76': 'red', '52,66,127': 'blue', '236,178,64': 'gold', '44,106,77': 'green', '90,63,134': 'violet', '228,87,42': 'orange' };
+  function paintInterface() {
+    $$('.btn').forEach(function (b) {
+      var key = SW[(b.style.getPropertyValue('--c') || '').replace(/\s/g, '')] || 'blue';
+      b.style.setProperty('--sw', 'url(' + paints.swatch[key] + ')');
+      b.classList.add('sw');
+    });
+    PILES.forEach(function (ref) {
+      var l = ref[0] === 'f' ? 'A' : ref[0] === 't' ? 'K' : ' ';
+      slots[ref].style.setProperty('--slot', 'url(' + paints.slot[l] + ')');
+      slots[ref].classList.add('painted');
+    });
+    $$('dialog.sheet').forEach(function (d) { d.style.setProperty('--sheetbg', 'url(' + paints.sheet + ')'); d.classList.add('painted'); });
+    paintTitle();
+  }
+  var titles = {};
+  function paintTitle() {
+    if (!paints) return;
+    var txt = t('title'), h = $('.title');
+    if (!titles[txt]) titles[txt] = Watercolor.title(txt).url;
+    var img = h.querySelector('img');
+    if (!img) { img = document.createElement('img'); img.alt = ''; h.insertBefore(img, h.firstChild); }
+    img.src = titles[txt];
+    h.classList.add('painted');
+  }
   var backUrls = {};
   function renderSettings() {
     var bc = $('#backChoices'), tc = $('#tableChoices');
@@ -778,7 +804,7 @@
   $('#optAuto').onchange = function () { settings.auto = this.checked; saveSettings(); if (settings.auto) scheduleAuto(); };
   $('#optTap').onchange = function () { settings.tap = this.checked; saveSettings(); };
   $$('[data-lang]').forEach(function (b) {
-    b.onclick = function () { settings.lang = b.getAttribute('data-lang'); saveSettings(); applyText(); renderSettings(); };
+    b.onclick = function () { settings.lang = b.getAttribute('data-lang'); saveSettings(); applyText(); paintTitle(); renderSettings(); };
   });
 
   $('#btnNew').onclick = function () { if (!busy()) openDialog('#dlgNew'); };
@@ -824,6 +850,7 @@
     Object.keys(res.backs).forEach(function (k) { backUrls[k] = res.backs[k].toDataURL(); });
     applyLook();
     build();
+    paintInterface();
     var saved = store.get('wcsol.game', null);
     if (saved && saved.G && !saved.G.won && saved.G.tab) {
       G = saved.G;

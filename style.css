@@ -61,6 +61,9 @@ button { font: inherit; color: inherit; }
   filter: url(#wc);
 }
 .title small { font: 500 .55em var(--font-display); color: var(--ink-soft); }
+.title.painted::before { display: none; }
+.title.painted > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.title img { height: clamp(44px, 5.4vw, 62px); width: auto; display: block; mix-blend-mode: multiply; margin: -6px 0 -8px -10px; }
 .hud {
   display: flex;
   gap: 16px;
@@ -76,7 +79,6 @@ button { font: inherit; color: inherit; }
 .btn {
   --c: 52, 66, 127;
   position: relative;
-  isolation: isolate;
   border: 0;
   background: none;
   padding: 7px 14px;
@@ -102,6 +104,20 @@ button { font: inherit; color: inherit; }
   filter: url(#wc);
   transition: background .2s, transform .2s;
 }
+.btn.sw::before {
+  inset: -5px -9px;
+  border-radius: 0;
+  background: var(--sw) center / 100% 100% no-repeat;
+  box-shadow: none;
+  filter: none;
+  mix-blend-mode: multiply;
+  transition: transform .25s, opacity .2s;
+  opacity: .9;
+}
+.btn.sw:hover::before { background: var(--sw) center / 100% 100% no-repeat; opacity: 1; transform: scale(1.06) rotate(-1.5deg); }
+.btn.sw:disabled::before { transform: none; }
+.btn.sw.icon::before { inset: -3px -5px; opacity: .6; }
+.btn.sw i { text-shadow: 0 0 6px rgba(255, 252, 240, .9); }
 .btn:hover::before { background: radial-gradient(70% 90% at 30% 35%, rgba(var(--c), .30), transparent 75%), radial-gradient(90% 100% at 70% 70%, rgba(var(--c), .42), rgba(var(--c), .2) 60%, transparent 78%); }
 .btn:active { transform: scale(.96); }
 .btn:focus-visible { outline: 2px dashed rgba(var(--c), .8); outline-offset: 3px; }
@@ -134,7 +150,9 @@ button { font: inherit; color: inherit; }
   font: 700 calc(var(--cw) * .5)/1 var(--font-display);
   color: rgba(47, 54, 96, .16);
 }
+.slot.painted { border: 0; background: var(--slot) center / 100% 100% no-repeat; mix-blend-mode: multiply; color: transparent; border-radius: 0; }
 .slot.stock { cursor: pointer; }
+.slot.painted.recycle { color: rgba(60, 60, 70, .5); }
 .slot.stock.recycle { color: rgba(47, 54, 96, .4); border-color: rgba(47, 54, 96, .35); }
 .slot.hint { box-shadow: 0 0 0 3px rgba(236, 178, 64, .9), 0 0 18px rgba(236, 178, 64, .7); }
 
@@ -172,12 +190,13 @@ button { font: inherit; color: inherit; }
 .card.flat .face { box-shadow: none; }
 .card.lift .face { box-shadow: 0 10px 22px rgba(70, 55, 25, .3), 0 3px 6px rgba(70, 55, 25, .2); }
 .card.dragging { transition: none; cursor: grabbing; }
-.card.hint .face { box-shadow: 0 0 0 3px rgba(236, 178, 64, .95), 0 0 20px rgba(236, 178, 64, .85); }
+.card.hint .face { box-shadow: 0 0 0 3px rgba(242, 176, 26, .9), 0 0 22px 6px rgba(242, 176, 26, .6); }
 .card.shake { animation: shake .32s ease; }
 @keyframes shake { 0%, 100% { translate: 0 0; } 25% { translate: -5px 0; } 60% { translate: 5px 0; } 85% { translate: -2px 0; } }
 .board.noanim .card, .board.noanim .flip { transition: none !important; }
 
 .splash {
+  mix-blend-mode: multiply;
   position: absolute;
   left: 0;
   top: 0;
@@ -252,6 +271,13 @@ button { font: inherit; color: inherit; }
   border-radius: 22px 8px 26px 10px / 10px 24px 8px 22px;
   box-shadow: 0 20px 60px rgba(50, 40, 20, .35);
 }
+.sheet.painted {
+  background: var(--sheetbg) center / 100% 100% no-repeat;
+  border-radius: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 14px 28px rgba(50, 40, 20, .35));
+  padding: 30px 34px 24px;
+}
 .sheet::backdrop { background: rgba(60, 50, 30, .35); }
 .sheet h2 { margin: 0 0 10px; font: 700 40px/1 var(--font-display); }
 .sheet h3 { margin: 16px 0 8px; font: 700 24px/1 var(--font-display); color: var(--ink-soft); }
@@ -321,6 +347,7 @@ button { font: inherit; color: inherit; }
   .tools { width: 100%; justify-content: space-between; }
   .btn span { display: none; }
   .btn { width: 44px; padding: 0; justify-content: center; }
+  .tools .btn.sw::before { inset: -2px -3px; opacity: .55; }
   .btn.big span, .sheet .btn span, .finish span { display: inline; }
   .sheet .btn, .finish { width: auto; padding: 7px 16px; }
   .choices { grid-template-columns: 1fr; }
