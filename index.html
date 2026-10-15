@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Акварельный пасьянс</title>
+<meta name="description" content="Пасьянс «Косынка» с картами, нарисованными акварелью. Watercolor Klondike solitaire in the browser.">
+<meta name="theme-color" content="#f4ecd4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 28C6 20 3 15 3 10.5 3 6.9 5.8 4 9.3 4c2.7 0 4.9 1.6 6.7 4 1.8-2.4 4-4 6.7-4C26.2 4 29 6.9 29 10.5 29 15 26 20 16 28z' fill='%23d2344c' fill-opacity='.8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Neucha&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Soft, uneven edges for painted buttons and panels -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="wc" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="4" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<div class="app">
+  <header class="bar">
+    <h1 class="title"><span data-t="title"></span><small data-t="subtitle"></small></h1>
+    <div class="hud" aria-live="off">
+      <div><span data-t="time"></span><b id="hudTime">0:00</b></div>
+      <div><span data-t="moves"></span><b id="hudMoves">0</b></div>
+      <div><span data-t="score"></span><b id="hudScore">0</b></div>
+    </div>
+    <nav class="tools">
+      <button class="btn" id="btnNew" style="--c:210,52,76" data-ta="newGame"><i aria-hidden="true">✿</i><span data-t="newGame"></span></button>
+      <button class="btn" id="btnUndo" style="--c:52,66,127" data-ta="undo"><i aria-hidden="true">↶</i><span data-t="undo"></span></button>
+      <button class="btn" id="btnHint" style="--c:236,178,64" data-ta="hint"><i aria-hidden="true">✦</i><span data-t="hint"></span></button>
+      <button class="btn icon" id="btnStats" style="--c:44,106,77" data-ta="stats"><i aria-hidden="true">❦</i></button>
+      <button class="btn icon" id="btnSettings" style="--c:90,63,134" data-ta="settings"><i aria-hidden="true">⚙</i></button>
+      <button class="btn icon" id="btnRules" style="--c:228,87,42" data-ta="rules"><i aria-hidden="true">?</i></button>
+    </nav>
+  </header>
+
+  <main id="board" class="board" aria-label="Игровой стол"></main>
+  <div class="deal" id="dealNo"></div>
+  <button class="btn finish" id="btnFinish" style="--c:236,178,64" hidden><i aria-hidden="true">✦</i><span data-t="finish"></span></button>
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+
+<div class="loading" id="loading">
+  <div class="loading-box">
+    <p data-t="loading"></p>
+    <div class="bar-track"><div class="bar-fill" id="loadBar"></div></div>
+  </div>
+</div>
+
+<canvas id="fx" class="fx" hidden></canvas>
+
+<dialog id="dlgNew" class="sheet">
+  <h2 data-t="newGame"></h2>
+  <div class="choices">
+    <button class="btn big" data-new="1" style="--c:52,66,127"><b data-t="draw1"></b><small data-t="draw1note"></small></button>
+    <button class="btn big" data-new="3" style="--c:210,52,76"><b data-t="draw3"></b><small data-t="draw3note"></small></button>
+  </div>
+  <button class="link" id="btnRestart" data-t="restart"></button>
+  <form class="dealform" id="dealForm">
+    <label for="dealInput" data-t="dealNo"></label>
+    <input id="dealInput" type="number" inputmode="numeric" min="1" max="999999" required>
+    <button class="btn small" type="submit" style="--c:44,106,77" data-t="play"></button>
+  </form>
+  <div class="row"><button class="link" data-close data-t="cancel"></button></div>
+</dialog>
+
+<dialog id="dlgSettings" class="sheet">
+  <h2 data-t="settings"></h2>
+  <h3 data-t="backTitle"></h3>
+  <div class="swatches" id="backChoices"></div>
+  <h3 data-t="tableTitle"></h3>
+  <div class="swatches" id="tableChoices"></div>
+  <label class="check"><input type="checkbox" id="optAuto"> <span data-t="autoMove"></span></label>
+  <label class="check"><input type="checkbox" id="optTap"> <span data-t="tapMove"></span></label>
+  <div class="langs"><span data-t="lang"></span>
+    <button class="link" data-lang="ru">Русский</button>
+    <button class="link" data-lang="en">English</button>
+  </div>
+  <div class="row"><button class="btn small" data-close style="--c:52,66,127" data-t="close"></button></div>
+</dialog>
+
+<dialog id="dlgStats" class="sheet">
+  <h2 data-t="stats"></h2>
+  <dl class="stats" id="statsList"></dl>
+  <div class="row">
+    <button class="link" id="btnResetStats" data-t="reset"></button>
+    <button class="btn small" data-close style="--c:52,66,127" data-t="close"></button>
+  </div>
+</dialog>
+
+<dialog id="dlgRules" class="sheet">
+  <h2 data-t="rules"></h2>
+  <div class="rules" data-th="rulesHtml"></div>
+  <div class="row"><button class="btn small" data-close style="--c:52,66,127" data-t="close"></button></div>
+</dialog>
+
+<dialog id="dlgWin" class="sheet win">
+  <h2 data-t="win"></h2>
+  <p data-t="winText"></p>
+  <dl class="stats" id="winList"></dl>
+  <div class="row">
+    <button class="link" data-close data-t="close"></button>
+    <button class="btn" id="btnWinNew" style="--c:210,52,76" data-t="newGame"></button>
+  </div>
+</dialog>
+
+<script src="js/paint.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
