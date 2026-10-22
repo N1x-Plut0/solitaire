@@ -11,17 +11,19 @@
 (function () {
   'use strict';
 
-  var CW = 250, CH = 350, RAD = 18;
-  var FONT = '"Caveat", "Segoe Print", "Comic Sans MS", cursive';
+  var CW = 250, CH = 350, RAD = 22;
+  // Lora for card ranks (lining figures read well), Cormorant Garamond italic for the title.
+  var FONT = '"Lora", Georgia, "Times New Roman", serif';
+  var DISPLAY = '"Cormorant Garamond", "Cormorant", Georgia, serif';
   var CARD_PAPER = [251, 248, 238];
-  var GRAPHITE = '#5d5d66', SEPIA = '#5b3f2a';
+  var GRAPHITE = '#7a7a86', SEPIA = '#7a5e4a';
 
   // Spades and clubs are cool "dark" suits, hearts and diamonds are warm "red" ones.
   var SUITS = [
-    { wash: ['#22348f', '#55308c'], bg: ['#2f7fc0', '#6a3f9a'], ink: '#1d255c' },
-    { wash: ['#c11a3a', '#e0457a'], bg: ['#d83a6a', '#d0902a'], ink: '#9c1230' },
-    { wash: ['#df4419', '#f2971c'], bg: ['#e0702a', '#e8b030'], ink: '#ad300c' },
-    { wash: ['#0f6b55', '#1f7d96'], bg: ['#4f8f2f', '#2f86b0'], ink: '#0f3a2e' }
+    { wash: ['#3d4c9c', '#7a5cb0'], bg: ['#7aa0d8', '#a88ad0'], ink: '#2f3870' },
+    { wash: ['#d23d63', '#ee8aa6'], bg: ['#ec8aa8', '#f0c08a'], ink: '#b3304f' },
+    { wash: ['#ea6a43', '#f5ad6a'], bg: ['#f2a07a', '#f2cf80'], ink: '#c24f28' },
+    { wash: ['#2f8a72', '#6aaab4'], bg: ['#9ccaa0', '#96c4d4'], ink: '#265a4c' }
   ];
   var RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
@@ -180,14 +182,16 @@
       var p = H[i - w - 1] !== undefined ? H[i - w - 1] : H[i], q = H[i + w + 1] !== undefined ? H[i + w + 1] : H[i];
       S[i] = 1 + ((p - q) * 0.11 + (H[i] - 0.5) * 0.035) * tooth;
     }
-    // several noises on grids that never line up, so no square pattern shows
-    var na = vnoise(w, h, 47, r), nb = vnoise(w, h, 29.3, r), nc = vnoise(w, h, 113, r), nd = vnoise(w, h, 21.7, r), ne = vnoise(w, h, 13.1, r);
-    var NA = new Float32Array(n), NB = new Float32Array(n);
-    for (i = 0; i < n; i++) {
+    // Wetness and mixing fields are larger than the sheet, so every wash can read them at its own
+    // offset without wrapping. Several grids that never line up keep squares from showing.
+    var P = Math.min(400, Math.round(Math.max(w, h) / 2)), NW = w + P, NH = h + P, nn = NW * NH;
+    var na = vnoise(NW, NH, 47, r), nb = vnoise(NW, NH, 29.3, r), nc = vnoise(NW, NH, 113, r), nd = vnoise(NW, NH, 21.7, r), ne = vnoise(NW, NH, 13.1, r);
+    var NA = new Float32Array(nn), NB = new Float32Array(nn);
+    for (i = 0; i < nn; i++) {
       NA[i] = clamp((na[i] * 0.4 + nb[i] * 0.25 + nc[i] * 0.35 - 0.5) * 1.5 + 0.5, 0, 1);
       NB[i] = clamp((nd[i] * 0.6 + ne[i] * 0.4 - 0.5) * 1.5 + 0.5, 0, 1);
     }
-    var t = { w: w, h: h, H: H, S: S, NA: NA, NB: NB };
+    var t = { w: w, h: h, H: H, S: S, NA: NA, NB: NB, P: P, NW: NW };
     texCache[key] = t;
     return t;
   }
@@ -231,7 +235,7 @@
     var a1 = absorb(pig), a2 = o.pig2 ? absorb(o.pig2) : null;
     var dens = o.density == null ? 0.8 : o.density;
     var noise = o.noise == null ? 0.35 : o.noise, gran = o.gran == null ? 0.45 : o.gran;
-    var ox = Math.floor(r() * W), oy = Math.floor(r() * TH), ox2 = Math.floor(r() * W), oy2 = Math.floor(r() * TH);
+    var NW = t.NW, ox = Math.floor(r() * t.P), oy = Math.floor(r() * t.P), ox2 = Math.floor(r() * t.P), oy2 = Math.floor(r() * t.P);
     var blooms = [], i, k;
     for (i = 0; i < (o.blooms || 0); i++) {
       for (var tries = 0; tries < 30; tries++) {
@@ -241,7 +245,7 @@
     }
     var A0 = this.A[0], A1 = this.A[1], A2 = this.A[2], H = t.H, NA = t.NA, NB = t.NB, peaks = !!o.peaks;
     for (var y = 0; y < h; y++) {
-      var gy = y + R.y, ny = ((gy + oy) % TH) * W, ny2 = ((gy + oy2) % TH) * W;
+      var gy = y + R.y, ny = (gy + oy) * NW, ny2 = (gy + oy2) * NW;
       for (var x = 0; x < w; x++) {
         k = y * w + x;
         var m = M[k];
@@ -249,7 +253,7 @@
         var gx = x + R.x, gi = gy * W + gx;
         var D = m;
         if (edge) { var rim = m - B[k]; if (rim > 0) D *= 1 + edge * rim * 3.2; }
-        D *= 1 - noise + 2 * noise * NA[ny + (gx + ox) % W];
+        D *= 1 - noise + 2 * noise * NA[ny + gx + ox];
         var hh = H[gi];
         D *= 1 + gran * ((peaks ? hh : 1 - hh) - 0.5) * 1.1;
         for (i = 0; i < blooms.length; i++) {
@@ -264,7 +268,7 @@
         D *= dens;
         if (D <= 0) continue;
         if (a2) {
-          var tm = clamp((NB[ny2 + (gx + ox2) % W] - 0.5) * 2.2 + 0.5, 0, 1);
+          var tm = clamp((NB[ny2 + gx + ox2] - 0.5) * 2.2 + 0.5, 0, 1);
           A0[gi] += D * (a1[0] + (a2[0] - a1[0]) * tm);
           A1[gi] += D * (a1[1] + (a2[1] - a1[1]) * tm);
           A2[gi] += D * (a1[2] + (a2[2] - a1[2]) * tm);
@@ -298,7 +302,7 @@
   };
   Sheet.prototype.text = function (str, x, y, size, pig, o) {
     o = o || {};
-    var font = (o.weight || 700) + ' ' + size + 'px ' + FONT, ctx = this.cx;
+    var font = (o.italic ? 'italic ' : '') + (o.weight || 600) + ' ' + size + 'px ' + (o.family || FONT), ctx = this.cx;
     ctx.font = font;
     var w = ctx.measureText(str).width, left = o.align === 'center' ? x - w / 2 : x;
     var R = this.raster({ x0: left - 14, y0: y - size * 1.05, x1: left + w + 14, y1: y + size * 0.4 }, function (c) {
@@ -431,7 +435,7 @@
   function pip(S, s, x, y, sc, rot, o) {
     var su = SUITS[s], r = S.r;
     S.wash([place(SHAPES[s], x, y, sc, rot + (r() - 0.5) * 0.1)], su.wash[0], Object.assign({
-      pig2: su.wash[1], density: 0.92, edge: 1.1, edgeR: Math.max(2, sc / 9), noise: 0.32, gran: 0.55,
+      pig2: su.wash[1], density: 0.8, edge: 0.85, edgeR: Math.max(2, sc / 9), noise: 0.3, gran: 0.4,
       amt: 0.6, layers: 4, blooms: r() < 0.3 ? 1 : 0, bloomR: sc * 0.3
     }, o || {}));
     // a highlight lifted with a damp brush
@@ -467,20 +471,20 @@
         var aa = Math.PI / 2 + side * (0.35 + i / 12 * 2.1), px = cx + Math.cos(aa) * wr, py = wy + Math.sin(aa) * wr * 0.95;
         var tang = aa + side * Math.PI / 2, out = (i % 2 ? 0.55 : -0.55);
         var ang = tang + out, len = 17 + r() * 5;
-        S.wash([leaf(px, py, px + Math.cos(ang) * len, py + Math.sin(ang) * len, 4.5, 8)], '#4f8a2e', { pig2: '#9a9a26', density: 0.75, edge: 1.2, edgeR: 2, amt: 0.3, layers: 3, gran: 0.5 });
+        S.wash([leaf(px, py, px + Math.cos(ang) * len, py + Math.sin(ang) * len, 4.5, 8)], '#7ab06a', { pig2: '#bcc27a', density: 0.75, edge: 1.2, edgeR: 2, amt: 0.3, layers: 3, gran: 0.5 });
       }
     });
     pip(S, s, cx, wy, 34, 0);
     // crown
     var cy = 152;
     var crown = [[-1, .5], [-1.12, -.6], [-.55, -.05], [0, -.82], [.55, -.05], [1.12, -.6], [1, .5]].map(function (p) { return { x: cx + p[0] * 54, y: cy + p[1] * 50 }; });
-    S.wash([densify(crown, 4)], '#d8961f', { pig2: '#b94e1e', density: 0.75, edge: 1.3, edgeR: 3, noise: 0.45, gran: 0.6, amt: 0.35, layers: 4, blooms: 1, bloomR: 12 });
+    S.wash([densify(crown, 4)], '#ebb45a', { pig2: '#dc8a6a', density: 0.75, edge: 1.3, edgeR: 3, noise: 0.45, gran: 0.6, amt: 0.35, layers: 4, blooms: 1, bloomR: 12 });
     S.lift([circle(cx - 18, cy - 4, 14, 8, 10)], 0.35, { soft: 3 });
     S.wash([rect(cx - 56, cy + 22, 112, 17, 5)], su.wash[0], { pig2: su.wash[1], density: 0.8, edge: 1.2, edgeR: 2, amt: 0.3, layers: 3 });
     [[-1.12, -.6], [0, -.82], [1.12, -.6]].forEach(function (p) {
       S.wash([circle(cx + p[0] * 54, cy + p[1] * 50 - 6, 7.5, 7.5, 14)], su.wash[1], { pig2: su.wash[0], density: 0.9, edge: 1.4, edgeR: 2, amt: 0.3, layers: 3 });
     });
-    for (i = -2; i <= 2; i++) S.drops([{ x: cx + i * 21, y: cy + 30.5, s: 2.6 }], i % 2 ? '#e8b030' : '#f4f0e0', { density: 0.9 });
+    for (i = -2; i <= 2; i++) S.drops([{ x: cx + i * 21, y: cy + 30.5, s: 2.6 }], i % 2 ? '#f2c86a' : '#fbf6ea', { density: 0.9 });
     S.line(densify(crown, 6), SEPIA, { width: 1.3, density: 0.7, broken: 0.25, closed: true });
     S.line(rect(cx - 56, cy + 22, 112, 17, 8), SEPIA, { width: 1.1, density: 0.6, broken: 0.3, closed: true });
   }
@@ -488,11 +492,11 @@
   function queen(S, s) {
     var su = SUITS[s], r = S.r, cx = CW / 2, cy = 168, i;
     vignette(S, s);
-    S.line([{ x: cx, y: cy + 30 }, { x: cx - 5, y: cy + 70 }, { x: cx + 3, y: cy + 110 }, { x: cx, y: cy + 138 }], '#3f6e2a', { width: 3, density: 0.75, jitter: 0.3, edge: 0.8 });
+    S.line([{ x: cx, y: cy + 30 }, { x: cx - 5, y: cy + 70 }, { x: cx + 3, y: cy + 110 }, { x: cx, y: cy + 138 }], '#6a9a5a', { width: 3, density: 0.75, jitter: 0.3, edge: 0.8 });
     [[-1, 246, 0.82], [1, 226, 0.18], [-1, 286, 0.9]].forEach(function (l) {
       var ang = Math.PI * l[2], len = 44 + r() * 14;
-      S.wash([leaf(cx, l[1], cx + Math.cos(ang) * len, l[1] - Math.sin(ang) * len * 0.5, 11)], '#4f8a2e', { pig2: '#2f7a5a', density: 0.75, edge: 1.3, edgeR: 3, amt: 0.3, layers: 3, blooms: 1, bloomR: 8 });
-      S.line([{ x: cx, y: l[1] }, { x: cx + Math.cos(ang) * len * 0.9, y: l[1] - Math.sin(ang) * len * 0.45 }], '#2f5a26', { width: 1, density: 0.5 });
+      S.wash([leaf(cx, l[1], cx + Math.cos(ang) * len, l[1] - Math.sin(ang) * len * 0.5, 11)], '#7ab06a', { pig2: '#6aa890', density: 0.75, edge: 1.3, edgeR: 3, amt: 0.3, layers: 3, blooms: 1, bloomR: 8 });
+      S.line([{ x: cx, y: l[1] }, { x: cx + Math.cos(ang) * len * 0.9, y: l[1] - Math.sin(ang) * len * 0.45 }], '#5a8a50', { width: 1, density: 0.5 });
     });
     // petals glazed one over another, so overlaps get deeper
     for (i = 0; i < 8; i++) {
@@ -503,7 +507,7 @@
       var b = i / 5 * Math.PI * 2 - 0.4;
       S.wash([circle(cx + Math.cos(b) * 14, cy + Math.sin(b) * 14, 18, 12, 18, b)], su.wash[0], { pig2: su.wash[1], density: 0.42, edge: 1.5, edgeR: 2, amt: 0.35, layers: 3 });
     }
-    S.wash([circle(cx, cy, 11, 11, 18)], '#d8961f', { pig2: '#b94e1e', density: 0.85, edge: 1.3, edgeR: 2, amt: 0.3, layers: 3 });
+    S.wash([circle(cx, cy, 11, 11, 18)], '#ebb45a', { pig2: '#dc8a6a', density: 0.85, edge: 1.3, edgeR: 2, amt: 0.3, layers: 3 });
     S.drops(scatter(S, cx, cy, 9, 9, 1.4), SEPIA, { density: 0.8 });
     for (i = 0; i < 8; i += 2) {
       var c = i / 8 * Math.PI * 2 + 0.2;
@@ -515,7 +519,7 @@
   function jack(S, s) {
     var su = SUITS[s], r = S.r, i;
     vignette(S, s);
-    S.wash([leaf(98, 316, 150, 132, 16)], '#d8961f', { pig2: '#b94e1e', density: 0.45, edge: 1.3, edgeR: 3, amt: 0.3, layers: 3, blooms: 1, bloomR: 10 });
+    S.wash([leaf(98, 316, 150, 132, 16)], '#ebb45a', { pig2: '#dc8a6a', density: 0.45, edge: 1.3, edgeR: 3, amt: 0.3, layers: 3, blooms: 1, bloomR: 10 });
     var x0 = 66, y0 = 320, x1 = 184, y1 = 116;
     S.wash([leaf(x0 + 8, y0 - 14, x1, y1, 28, 20)], su.wash[0], { pig2: su.wash[1], density: 0.62, edge: 1.4, edgeR: 3, noise: 0.45, amt: 0.3, layers: 4, blooms: 2, bloomR: 12 });
     var dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
@@ -551,7 +555,7 @@
     else {
       // a pale wet-in-wet bloom behind the pips, never in the same place twice
       var bx = 60 + r() * 130, by = 150 + r() * 120;
-      S.wash([circle(bx, by, 70 + r() * 50, 80 + r() * 60, 12, r() * 3)], su.bg[0], { pig2: su.bg[1], density: 0.12, soft: 9, edge: 1.4, edgeR: 7, noise: 0.5, gran: 0.4, amt: 0.6, layers: 4, blooms: r() < 0.6 ? 1 : 0, bloomR: 22 });
+      S.wash([circle(bx, by, 70 + r() * 50, 80 + r() * 60, 12, r() * 3)], su.bg[0], { pig2: su.bg[1], density: 0.1, soft: 11, edge: 1.1, edgeR: 8, noise: 0.45, gran: 0.3, amt: 0.6, layers: 4, blooms: r() < 0.6 ? 1 : 0, bloomR: 22 });
       var bx0 = 74, by0 = 130, bw = CW - 148, bh = CH - 130 - 46;
       PIPS[rank].forEach(function (p) {
         pip(S, s, bx0 + p[0] * bw, by0 + p[1] * bh, 24 * (0.96 + r() * 0.08), p[1] > 0.5 ? Math.PI : 0);
@@ -560,8 +564,8 @@
     }
     // corner index painted with a brush: rank top-left, small suit top-right
     var label = RANKS[rank - 1];
-    S.text(label, label === '10' ? 9 : 15, 76, label === '10' ? 74 : 84, su.ink, { pig2: su.wash[0], density: 1, edge: 0.9, edgeR: 2, noise: 0.25, gran: 0.4 });
-    pip(S, s, CW - 38, 44, 21, 0, { blooms: 0 });
+    S.text(label, label === '10' ? 12 : 17, 74, label === '10' ? 54 : 62, su.ink, { pig2: su.wash[0], density: 0.95, edge: 0.7, edgeR: 2, noise: 0.22, gran: 0.3 });
+    pip(S, s, CW - 40, 50, 20, 0, { blooms: 0 });
     return roundCard(S.canvas());
   }
 
@@ -593,12 +597,12 @@
   var BACKS = {
     night: function (S) {
       var r = S.r, inner = [rect(M, M, CW - 2 * M, CH - 2 * M, 6)];
-      S.wash(inner, '#1e2c8c', { pig2: '#55288a', density: 1.0, amt: 0, edge: 1.3, edgeR: 5, noise: 0.45, gran: 0.6, blooms: 3, bloomR: 26 });
-      S.wash([rect(M - 20, CH * 0.6, CW - 2 * M + 40, CH * 0.5, 10)], '#141a46', { density: 0.55, amt: 0, soft: 18, edge: 0, gran: 0.9 });
-      S.salt(M, M, CW - 2 * M, CH - 2 * M, 45, 0.4);
+      S.wash(inner, '#5262b0', { pig2: '#9478c0', density: 0.72, amt: 0, edge: 1.3, edgeR: 5, noise: 0.45, gran: 0.5, blooms: 2, bloomR: 26 });
+      S.wash([rect(M - 20, CH * 0.6, CW - 2 * M + 40, CH * 0.5, 10)], '#4a4c8a', { density: 0.3, amt: 0, soft: 18, edge: 0, gran: 0.5 });
+      S.salt(M, M, CW - 2 * M, CH - 2 * M, 30, 0.3);
       S.lift([circle(125, 138, 62, 62, 24)], 0.3, { soft: 14, amt: 0 });
       S.lift([circle(125, 138, 39, 39, 48)], 0.95, { soft: 1, amt: 0 });
-      S.wash([circle(125, 138, 38, 38, 48)], '#f0be2a', { pig2: '#f5dc6a', density: 0.4, soft: 1, edge: 1.5, edgeR: 4, amt: 0.15, layers: 3, noise: 0.5 });
+      S.wash([circle(125, 138, 38, 38, 48)], '#f4cf6a', { pig2: '#f8e4a0', density: 0.35, soft: 1, edge: 1.5, edgeR: 4, amt: 0.15, layers: 3, noise: 0.5 });
       S.wash([circle(112, 128, 9, 7, 14), circle(138, 152, 6, 5, 12), circle(132, 120, 4, 4, 10)], '#b98a2a', { density: 0.2, soft: 2, amt: 0.3, edge: 1, edgeR: 2 });
       var stars = scatter(S, 125, 175, 150, 26, 1.2);
       S.lift(stars.map(function (d) { return circle(d.x, d.y, d.s, d.s, 8); }), 1, { amt: 0 });
@@ -606,44 +610,44 @@
     },
     meadow: function (S) {
       var r = S.r, i;
-      S.wash([rect(M, M, CW - 2 * M, CH * 0.64, 6)], '#2f84c4', { pig2: '#6a9ad8', density: 0.6, amt: 0, edge: 1, edgeR: 4, noise: 0.6, gran: 0.6, blooms: 2, bloomR: 22 });
+      S.wash([rect(M, M, CW - 2 * M, CH * 0.64, 6)], '#7ab0dc', { pig2: '#a8c0e8', density: 0.5, amt: 0, edge: 1, edgeR: 4, noise: 0.6, gran: 0.6, blooms: 2, bloomR: 22 });
       S.lift([circle(70, 96, 40, 16, 12), circle(170, 150, 46, 15, 12), circle(96, 176, 30, 10, 10)], 0.75, { soft: 6, amt: 0.5, layers: 3 });
       S.lift([circle(182, 74, 25, 25, 40)], 0.95, { soft: 1, amt: 0 });
-      S.wash([circle(182, 74, 24, 24, 40)], '#f2b51a', { pig2: '#f5d850', density: 0.65, soft: 1, edge: 1.5, edgeR: 3, amt: 0.15, layers: 3 });
+      S.wash([circle(182, 74, 24, 24, 40)], '#f4c85a', { pig2: '#f8e08a', density: 0.55, soft: 1, edge: 1.5, edgeR: 3, amt: 0.15, layers: 3 });
       var far = [{ x: M, y: CH - M }];
       for (i = 0; i <= 14; i++) far.push({ x: M + i / 14 * (CW - 2 * M), y: CH * 0.5 + Math.sin(i / 14 * Math.PI * 1.4 + 0.6) * 20 });
       far.push({ x: CW - M, y: CH - M });
-      S.wash([densify(far, 6)], '#3f7f92', { pig2: '#5a8a6a', density: 0.45, amt: 0.15, edge: 1.3, edgeR: 3, gran: 0.7 });
+      S.wash([densify(far, 6)], '#88b4bc', { pig2: '#9cbca0', density: 0.42, amt: 0.15, edge: 1.3, edgeR: 3, gran: 0.7 });
       var near = [{ x: M, y: CH - M }];
       for (i = 0; i <= 14; i++) near.push({ x: M + i / 14 * (CW - 2 * M), y: CH * 0.66 + Math.sin(i / 14 * Math.PI * 1.7 + 2.2) * 16 });
       near.push({ x: CW - M, y: CH - M });
-      S.wash([densify(near, 6)], '#3f8a22', { pig2: '#b0a52a', density: 0.8, amt: 0.15, edge: 1.3, edgeR: 3, gran: 0.7, blooms: 2, bloomR: 18 });
+      S.wash([densify(near, 6)], '#86b866', { pig2: '#cfc87a', density: 0.62, amt: 0.15, edge: 1.3, edgeR: 3, gran: 0.7, blooms: 2, bloomR: 18 });
       for (i = 0; i < 30; i++) {
         var gx = M + 6 + r() * (CW - 2 * M - 12), gy = CH * 0.62 + r() * (CH * 0.36 - M);
-        S.line([{ x: gx, y: gy }, { x: gx + (r() - 0.5) * 6, y: gy - 6 - r() * 9 }], '#1f4a22', { width: 1, density: 0.7, jitter: 0.2 });
+        S.line([{ x: gx, y: gy }, { x: gx + (r() - 0.5) * 6, y: gy - 6 - r() * 9 }], '#4a7a4a', { width: 1, density: 0.45, jitter: 0.2 });
       }
       var fl = scatter(S, 125, 278, 90, 30, 2.2);
       S.lift(fl.map(function (d) { return circle(d.x, d.y, d.s + 0.6, d.s + 0.6, 8); }), 1, { amt: 0 });
-      S.drops(fl.filter(function (d, k) { return k % 3; }), '#e2386a', { pig2: '#f2b51a', density: 0.85 });
+      S.drops(fl.filter(function (d, k) { return k % 3; }), '#ec7a9a', { pig2: '#f4c86a', density: 0.75 });
       S.tape(M);
     },
     sunset: function (S) {
       var r = S.r, i;
-      S.wash([rect(M, M, CW - 2 * M, CH - 2 * M, 6)], '#f2ae1a', { pig2: '#f2c84a', density: 0.6, amt: 0, edge: 1, edgeR: 4, noise: 0.5, gran: 0.5 });
-      S.wash([rect(M - 30, M - 30, CW + 60, CH * 0.42, 10)], '#d8386a', { pig2: '#ea6a2a', density: 0.7, amt: 0, soft: 16, edge: 0, noise: 0.5, gran: 0.6 });
+      S.wash([rect(M, M, CW - 2 * M, CH - 2 * M, 6)], '#f6c87a', { pig2: '#f8dc9a', density: 0.5, amt: 0, edge: 1, edgeR: 4, noise: 0.5, gran: 0.5 });
+      S.wash([rect(M - 30, M - 30, CW + 60, CH * 0.42, 10)], '#ea8aa6', { pig2: '#f2a07a', density: 0.55, amt: 0, soft: 18, edge: 0, noise: 0.5, gran: 0.6 });
       S.lift([circle(125, 190, 46, 46, 48)], 0.9, { soft: 1, amt: 0 });
-      S.wash([circle(125, 190, 44, 44, 48)], '#dd2f1e', { pig2: '#ea5a1e', density: 0.85, soft: 1, edge: 1.5, edgeR: 3, amt: 0.15, layers: 3, blooms: 1, bloomR: 14 });
+      S.wash([circle(125, 190, 44, 44, 48)], '#ea7a6a', { pig2: '#f2986a', density: 0.7, soft: 1, edge: 1.5, edgeR: 3, amt: 0.15, layers: 3, blooms: 1, bloomR: 14 });
       S.lift([rect(M, CH * 0.63, CW - 2 * M, CH * 0.37 - M, 6)], 0.85, { amt: 0 });
-      S.wash([rect(M, CH * 0.63, CW - 2 * M, CH * 0.37 - M, 6)], '#1f3394', { pig2: '#4a2f8a', density: 0.85, amt: 0, edge: 1.3, edgeR: 4, gran: 0.6, blooms: 2, bloomR: 18 });
+      S.wash([rect(M, CH * 0.63, CW - 2 * M, CH * 0.37 - M, 6)], '#6a7ac0', { pig2: '#9a88c8', density: 0.65, amt: 0, edge: 1.3, edgeR: 4, gran: 0.6, blooms: 2, bloomR: 18 });
       var refl = [];
       for (i = 0; i < 10; i++) {
         var y = CH * 0.66 + i * 10, w = 52 - i * 3.5 + r() * 12, x = 125 - w / 2 + (r() - 0.5) * 10;
         refl.push(rect(x, y, w, 2.5 + r() * 2, 4));
       }
       S.lift(refl, 0.9, { amt: 0 });
-      S.wash(refl, '#ea5a1e', { pig2: '#f2ae1a', density: 0.45, amt: 0, edge: 0.6, edgeR: 1 });
+      S.wash(refl, '#f09a7a', { pig2: '#f6c87a', density: 0.4, amt: 0, edge: 0.6, edgeR: 1 });
       [[66, 92, 9], [88, 78, 7], [178, 112, 8], [160, 70, 6]].forEach(function (b) {
-        S.line([{ x: b[0] - b[2], y: b[1] - 3 }, { x: b[0] - b[2] / 2, y: b[1] - 5 }, { x: b[0], y: b[1] }, { x: b[0] + b[2] / 2, y: b[1] - 5 }, { x: b[0] + b[2], y: b[1] - 3 }], '#3a2a40', { width: 1.5, density: 0.85, jitter: 0.2 });
+        S.line([{ x: b[0] - b[2], y: b[1] - 3 }, { x: b[0] - b[2] / 2, y: b[1] - 5 }, { x: b[0], y: b[1] }, { x: b[0] + b[2] / 2, y: b[1] - 5 }, { x: b[0] + b[2], y: b[1] - 3 }], '#5a4a60', { width: 1.3, density: 0.6, jitter: 0.2 });
       });
       S.tape(M);
     }
@@ -656,49 +660,45 @@
 
   // ---------- table ----------
   var TABLES = {
-    paper: { paper: [246, 239, 222], pigs: [['#d39a2a', '#b5552a'], ['#6f9a3a', '#c9a23a'], ['#3f86b8', '#8a6aa8'], ['#d8706a', '#d39a2a']] },
-    sage: { paper: [240, 243, 230], pigs: [['#4f8a2a', '#2f86b0'], ['#8aa030', '#3f7a6a'], ['#c9a23a', '#5d8f3a'], ['#2f7a6a', '#7aa8c8']] },
-    dusk: { paper: [241, 239, 238], pigs: [['#3a4fa8', '#8a4a9a'], ['#d8507a', '#3f86b8'], ['#5a3f8a', '#2f7fc0'], ['#c06a9a', '#e0a040']] }
+    paper: { paper: [249, 244, 232], pigs: [['#e8a07a', '#f0c88a'], ['#9cbf8a', '#c8d08a'], ['#e89aaa', '#f0c08a'], ['#8ab0d0', '#b0a0d0']] },
+    sage: { paper: [244, 246, 236], pigs: [['#8abf8a', '#a8cfc0'], ['#b8cf8a', '#8ab8a0'], ['#a0c8d0', '#c8d8a0'], ['#9cbf9a', '#d8cf9a']] },
+    dusk: { paper: [245, 243, 244], pigs: [['#9aa8d8', '#c0a8d8'], ['#e8a0b8', '#a8b8e0'], ['#b0a0d8', '#90b8e0'], ['#d8a8c8', '#f0c8a0']] }
   };
   function table(kind) {
     var T = TABLES[kind] || TABLES.paper, W = 1200, H = 780, i;
-    var S = new Sheet(Tex(W, H, 77, 1.3), kind.length * 977 + 3), r = S.r;
-    for (i = 0; i < 6; i++) {
+    var S = new Sheet(Tex(W, H, 77, 0.9), kind.length * 977 + 3), r = S.r;
+    // a few large, pale washes in the corners, leaving the middle of the sheet calm and light
+    var spots = [[0.08, 0.15], [0.92, 0.1], [0.12, 0.92], [0.88, 0.88], [0.5, 1.05]];
+    for (i = 0; i < spots.length; i++) {
       var p = T.pigs[i % T.pigs.length];
-      S.wash([circle(r() * W, r() * H, 170 + r() * 260, 130 + r() * 200, 14, r() * 3)], p[0], { pig2: p[1], density: 0.09 + r() * 0.06, soft: 16, edge: 1.6, edgeR: 10, noise: 0.55, gran: 0.6, amt: 0.6, layers: 4, blooms: 2, bloomR: 60 });
-    }
-    for (i = 0; i < 4; i++) {
-      var q = T.pigs[(i + 1) % T.pigs.length];
-      S.wash([circle(r() * W, r() * H, 90 + r() * 160, 70 + r() * 120, 28, r() * 3)], q[0], { pig2: q[1], density: 0.09, soft: 1, edge: 1.8, edgeR: 6, noise: 0.5, gran: 0.6, amt: 0.35, layers: 3, blooms: 1, bloomR: 40 });
-    }
-    for (i = 0; i < 3; i++) {
-      var sp = T.pigs[i % T.pigs.length];
-      S.drops(scatter(S, r() * W, r() * H, 90, 26, 4), sp[0], { density: 0.35 });
+      S.wash([circle(spots[i][0] * W + (r() - 0.5) * 120, spots[i][1] * H + (r() - 0.5) * 80, 240 + r() * 160, 190 + r() * 120, 18, r() * 3)], p[0], { pig2: p[1], density: 0.075 + r() * 0.04, soft: 22, edge: 1.1, edgeR: 12, noise: 0.45, gran: 0.35, amt: 0.45, layers: 4, blooms: 1, bloomR: 70 });
     }
     return S.canvas({ paper: T.paper });
   }
 
   // ---------- pieces of the interface (white images, blended with "multiply") ----------
   var SWATCH = {
-    red: ['#c41f3c', '#e0702a'], blue: ['#2a3f9a', '#6b3f9a'], gold: ['#f2b51a', '#e0841a'],
-    green: ['#3f8a2a', '#1f7d96'], violet: ['#6b3f9a', '#c0408a'], orange: ['#e0501a', '#f2b51a']
+    red: ['#e07a96', '#f0a890'], blue: ['#7a8ad0', '#a890d0'], gold: ['#f2c25a', '#f0a870'],
+    green: ['#8abf90', '#8ac0c8'], violet: ['#a890d0', '#e09ac0'], orange: ['#f0a070', '#f2c86a']
   };
   function swatch(key, seed) {
     var p = SWATCH[key], W = 240, H = 90;
     var S = new Sheet(Tex(W, H, 31), seed);
     var r = S.r, pts = [];
     for (var i = 0; i < 18; i++) {
-      var a = i / 18 * Math.PI * 2, rx = 104 + (Math.abs(Math.cos(a)) > 0.9 ? r() * 10 : 0);
-      pts.push({ x: 120 + Math.cos(a) * rx, y: 45 + Math.sin(a) * (30 + r() * 6) });
+      var a = i / 18 * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
+      // a soft pill: rounded ends, gently uneven sides
+      var px = Math.sign(c) * Math.pow(Math.abs(c), 0.45) * 100, py = Math.sign(sn) * Math.pow(Math.abs(sn), 0.7) * (28 + r() * 4);
+      pts.push({ x: 120 + px, y: 45 + py });
     }
-    S.wash([pts], p[0], { pig2: p[1], density: 0.42, soft: 1, edge: 1.6, edgeR: 3, noise: 0.5, gran: 0.7, amt: 0.35, layers: 4, blooms: 1, bloomR: 16 });
+    S.wash([pts], p[0], { pig2: p[1], density: 0.32, soft: 3, edge: 1.1, edgeR: 4, noise: 0.4, gran: 0.35, amt: 0.25, layers: 4, blooms: 1, bloomR: 16 });
     return S.canvas({ flat: true, paper: [255, 255, 255] }).toDataURL();
   }
   function slot(letter) {
     var S = new Sheet(cardTex, 4242 + letter.charCodeAt(0));
-    S.wash([rect(10, 10, CW - 20, CH - 20, 10)], '#8a8f9a', { pig2: '#a89a7a', density: 0.1, soft: 4, edge: 1.6, edgeR: 6, noise: 0.6, gran: 0.9, amt: 0.4, layers: 3, blooms: 1, bloomR: 30 });
-    S.line(roundRectPts(8, 8, CW - 16, CH - 16, 16, 7), GRAPHITE, { width: 2, density: 0.5, broken: 0.12, closed: true, peaks: true, gran: 0.9 });
-    if (letter !== ' ') S.text(letter, CW / 2, CH / 2 + 46, 130, GRAPHITE, { align: 'center', density: 0.22, edge: 0.6, edgeR: 3, gran: 0.9, peaks: true });
+    S.wash([roundRectPts(10, 10, CW - 20, CH - 20, 20, 10)], '#b8b0a0', { pig2: '#a8b0c0', density: 0.08, soft: 6, edge: 1, edgeR: 8, noise: 0.5, gran: 0.4, amt: 0.3, layers: 3 });
+    S.line(roundRectPts(8, 8, CW - 16, CH - 16, 20, 7), GRAPHITE, { width: 1.6, density: 0.28, broken: 0.1, closed: true, peaks: true, gran: 0.6 });
+    if (letter !== ' ') S.text(letter, CW / 2, CH / 2 + 40, 130, GRAPHITE, { align: 'center', family: DISPLAY, italic: true, weight: 500, density: 0.16, edge: 0.4, edgeR: 3, gran: 0.6, peaks: true });
     return S.canvas({ flat: true, paper: [255, 255, 255] }).toDataURL();
   }
   function splash(s) {
@@ -708,20 +708,19 @@
     return S.canvas({ flat: true, paper: [255, 255, 255] }).toDataURL();
   }
   function sheetPaper() {
-    var W = 520, H = 640, S = new Sheet(Tex(W, H, 55, 1.2), 99);
+    var W = 520, H = 640, S = new Sheet(Tex(W, H, 55, 0.7), 99);
     S.wash([circle(40, 30, 200, 120, 12)], '#e8b030', { pig2: '#d8706a', density: 0.12, soft: 12, edge: 1.5, edgeR: 8, noise: 0.6, gran: 0.9, amt: 0.8, layers: 4, blooms: 1, bloomR: 40 });
     S.wash([circle(W - 30, H - 20, 210, 130, 12)], '#3f86b8', { pig2: '#6a3f9a', density: 0.09, soft: 12, edge: 1.5, edgeR: 8, noise: 0.6, gran: 0.9, amt: 0.8, layers: 4 });
     return S.canvas({ paper: [252, 249, 240], deckle: 7 }).toDataURL();
   }
   // The game title, painted letter by letter with two pigments bleeding into each other.
   function title(text) {
-    var size = 76, probe = mk(10, 10).getContext('2d');
-    probe.font = '700 ' + size + 'px ' + FONT;
-    var W = Math.ceil(probe.measureText(text).width) + 50, H = 108;
+    var size = 80, probe = mk(10, 10).getContext('2d');
+    probe.font = 'italic 600 ' + size + 'px ' + DISPLAY;
+    var W = Math.ceil(probe.measureText(text).width) + 60, H = 112;
     var S = new Sheet(Tex(W, H, 21), 7 + text.length);
-    S.wash([circle(W / 2, 64, W / 2 - 12, 22, 16)], '#e8b030', { pig2: '#d8706a', density: 0.18, soft: 6, edge: 1.5, edgeR: 5, noise: 0.6, amt: 0.6, layers: 3, blooms: 1, bloomR: 20 });
-    S.text(text, 22, 80, size, '#24308a', { pig2: '#b51f4a', density: 1, edge: 1.1, edgeR: 2, noise: 0.35, gran: 0.5 });
-    S.drops(scatter(S, W * 0.8, 60, 40, 8, 2), '#b51f4a', { density: 0.6 });
+    S.wash([circle(W / 2, 66, W / 2 - 10, 26, 18)], '#f0c08a', { pig2: '#eaa0b0', density: 0.12, soft: 9, edge: 1, edgeR: 6, noise: 0.5, amt: 0.4, layers: 3, blooms: 1, bloomR: 24 });
+    S.text(text, 26, 82, size, '#3a3f80', { family: DISPLAY, italic: true, weight: 600, pig2: '#b8406a', density: 0.9, edge: 0.7, edgeR: 2, noise: 0.3, gran: 0.3 });
     return { url: S.canvas({ flat: true, paper: [255, 255, 255] }).toDataURL(), w: W, h: H };
   }
 
@@ -729,7 +728,12 @@
   function fontsReady() {
     if (!document.fonts || !document.fonts.load) return Promise.resolve();
     var t = new Promise(function (res) { setTimeout(res, 2500); });
-    return Promise.race([Promise.all([document.fonts.load('700 80px "Caveat"', 'AJQK10'), document.fonts.ready]), t]).catch(function () {});
+    return Promise.race([Promise.all([
+      document.fonts.load('600 62px "Lora"', 'AJQK10'),
+      document.fonts.load('italic 600 80px "Cormorant Garamond"', 'Акварельный пасьянс Watercolor'),
+      document.fonts.load('italic 500 130px "Cormorant Garamond"', 'AK'),
+      document.fonts.ready
+    ]), t]).catch(function () {});
   }
 
   // Paints everything; onProgress(0..1) lets the page show a loading bar.
